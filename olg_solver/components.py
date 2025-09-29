@@ -49,3 +49,22 @@ class Firm:
             "output": output,
             "profit": profit
         }
+        
+class Government:
+    """
+    Represents the government, which sets a complete fiscal policy.
+    """
+    def __init__(self, tax_rate_young=0.0, tax_rate_old=0.0, G=0.0, transfer_payment=0.0):
+        """
+        Initializes the Government with its policy parameters.
+
+        Args:
+            tax_rate_young (float): Tax rate on young's endowment.
+            tax_rate_old (float): Tax rate on old's endowment.
+            G (float): Government consumption (e.g., public goods).
+            transfer_payment (float): Lump-sum transfer payment to agents.
+        """
+        self.tax_rate_young = tax_rate_young
+        self.tax_rate_old = tax_rate_old
+        self.G = G
+        self.transfer_payment = transfer_payment
