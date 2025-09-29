@@ -39,30 +39,58 @@ class Agent:
         }
 
 class Economy:
-    """The economic environment, managing a population of general Agents."""
-    def __init__(self, population, g):
+    """The economic environment, managing agents and optionally a firm."""
+    def __init__(self, population, g, firm=None):
         self.population = population
         self.g = g
+        self.firm = firm # Can be None for a pure exchange economy
 
-    def get_aggregate_savings(self, R):
-        """Calculates total net savings by asking each agent to solve its problem."""
-        total_savings = 0
+    def get_market_imbalance(self, R):
+        """
+        Calculates the imbalance in the capital market.
+        This is the core function the Solver will target.
+        """
+        # 1. Calculate Aggregate Savings (Capital Supply from Agents)
+        aggregate_savings = 0
         for agent, share in self.population.items():
             solution = agent.solve(R, self.g)
             if solution is not None:
-                total_savings += solution['savings'] * share
-        return total_savings
+                aggregate_savings += solution['savings'] * share
+        
+        # If there's no firm, the market clears when aggregate savings are zero
+        if not self.firm:
+            return aggregate_savings
+
+        # --- If a firm exists, the market clears when S = I (or S = K_d) ---
+        
+        # 2. Determine Prices for the Firm
+        r = R - 1 # Convert Gross R to net r for the firm's decision
+        
+        # With inelastic labor supply (L=1), the wage must equal the marginal product of labor
+        # First, find the K/L ratio the firm desires at this interest rate 'r'
+        k_l_ratio = (self.firm.A * self.firm.alpha / (r + self.firm.delta))**(1 / (1 - self.firm.alpha))
+        
+        # The equilibrium wage is the MPL at that K/L ratio
+        w_eq = self.firm.A * (1 - self.firm.alpha) * (k_l_ratio**self.firm.alpha)
+
+        # 3. Calculate the Firm's Capital Demand at these prices
+        firm_solution = self.firm.solve(r, w_eq)
+        capital_demand = firm_solution['capital_demand']
+
+        # 4. Return the market imbalance: Supply - Demand
+        return aggregate_savings - capital_demand
 
 class Solver:
     """Finds the equilibrium interest rate for a given Economy."""
     def __init__(self, economy):
         self.economy = economy
 
-    def find_equilibrium_R(self, R_min=0.8, R_max=1.5):
-        """Finds the market-clearing gross interest rate R*."""
+    def find_equilibrium_R(self, R_min=1.01, R_max=1.5):
+        """Finds the R that makes the market imbalance zero."""
         try:
-            equilibrium_R = brentq(self.economy.get_aggregate_savings, a=R_min, b=R_max)
+            # Note: We now call the general 'get_market_imbalance' method
+            equilibrium_R = brentq(self.economy.get_market_imbalance, a=R_min, b=R_max)
             return equilibrium_R
         except ValueError:
-            print("Solver failed: The aggregate savings function does not have opposite signs at the bracket endpoints.")
+            print("Solver failed: The market imbalance function may not cross zero in the given bracket.")
             return None
